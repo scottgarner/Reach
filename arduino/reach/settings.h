@@ -1,4 +1,4 @@
-#define DEVICE 2
+#define DEVICE 0
 
 #define INPUT_COUNT 8
 #define BUFFER_LENGTH 3

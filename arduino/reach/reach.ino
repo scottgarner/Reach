@@ -67,7 +67,7 @@ void setup() {
     // Led Pins
     
     pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], HIGH);    
+    digitalWrite(ledPins[i], LOW);    
 
     // Setup Inputs
 
