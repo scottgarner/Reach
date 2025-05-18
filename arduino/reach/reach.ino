@@ -1,192 +1,88 @@
-/*
+#include <MIDIUSB.h>
 
- Reach // Scott Garner 2013
- 
- Most logic lifted from the Makey Makey firmware and rewritten just so I could grasp it.
- https://github.com/sparkfun/MaKeyMaKey/
- 
- */
+#define INPUT_COUNT 8
+#define BUFFER_LENGTH 64
+#define SAMPLE_INTERVAL 250
 
-#include "settings.h"
+int sampleIndex = 0;
+unsigned long lastSample = 0;
 
-//
-// Indexes
-//
+float pressThreshold = BUFFER_LENGTH * 0.65;
+float releaseThreshold = BUFFER_LENGTH * 0.5;
 
-int bitIndex = 0;
-int byteIndex = 0;
-
-//
-// Timing
-//
-
-unsigned long loopTime = 0;
-unsigned long previousTime = 0;
-
-//
-// Thresholds
-//
-
-int pressThreshold = int(13.2 + 1.5);
-int releaseThreshold = int(13.2 - 1.5);
-
-//
-// Input Structure
-//
-
-typedef struct {
-  int pinNumber;
-  int ledPin;
-  char keyDown;
-  char keyUp;
+typedef struct
+{
+  byte pinNumber;
+  byte note;
   byte buffer[BUFFER_LENGTH];
   byte bufferSum;
   boolean pressed;
-}
-ReachInput;
+} ReachInput;
 
-ReachInput inputs[INPUT_COUNT];
+ReachInput inputs[INPUT_COUNT] = {
+    {4, 60}, {6, 62}, {8, 64}, {9, 65}, {A0, 67}, {A1, 69}, {A2, 71}, {A3, 72}};
 
-//
-// Setup
-//
+void setup()
+{
+  Serial.begin(115200);
 
-void setup() {
-
-  Serial.begin(9600);
-
-  // Initialze pins
-
-  for (int i=0; i<INPUT_COUNT; i++)
+  for (int i = 0; i < INPUT_COUNT; i++)
   {
-    // Input Pins
-
-    pinMode(pinNumbers[i], INPUT);
-    digitalWrite(pinNumbers[i], LOW);
-
-    // Led Pins
-    
-    pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], LOW);    
-
-    // Setup Inputs
-
-    inputs[i].pinNumber = pinNumbers[i];
-    inputs[i].ledPin = ledPins[i];
-    inputs[i].keyDown = keyDowns[i];
-    inputs[i].keyUp = keyUps[i];
-
-    inputs[i].pressed = false;
-    for (int j=0; j<BUFFER_LENGTH; j++) {
-      inputs[i].buffer[j] = 0;
-    }    
-  
-  }  
-
-  Keyboard.begin();
-}
-
-//
-// Loop
-//
-
-void loop() {
-  
-  updateBuffers();
-  updateStates();
-  updateIndices();
-
-  forceDelay();
-}
-
-//
-// Check pins and update filter buffer
-//
-
-void updateBuffers() {
-
-  for (int i=0; i<INPUT_COUNT; i++) {
-    byte currentByte = inputs[i].buffer[byteIndex];
-
-    int currentValue = digitalRead(inputs[i].pinNumber);
-    currentValue = !currentValue;
-
-    inputs[i].bufferSum -= (currentByte >> bitIndex) & 0x01;
-    inputs[i].bufferSum += currentValue;    
-
-    if (currentValue) {
-      currentByte |= (1<<bitIndex);
-    } 
-    else {
-      currentByte &= ~(1<<bitIndex);
-    }    
-
-    inputs[i].buffer[byteIndex] = currentByte;
+    pinMode(inputs[i].pinNumber, INPUT);
   }
-
 }
 
-//
-// Look at thresholds and send key presses if needed
-//
+void loop()
+{
+  unsigned long now = micros();
 
-void updateStates() {
+  if (now - lastSample >= SAMPLE_INTERVAL)
+  {
+    // Update buffers.
+    {
+      for (int i = 0; i < INPUT_COUNT; i++)
+      {
+        byte previousValue = inputs[i].buffer[sampleIndex];
+        byte newValue = !digitalRead(inputs[i].pinNumber);
 
-  for (int i=0; i<INPUT_COUNT; i++) {
+        inputs[i].bufferSum -= previousValue;
+        inputs[i].bufferSum += newValue;
 
-    if (inputs[i].pressed) {
-      if (inputs[i].bufferSum < releaseThreshold) {  
-        inputs[i].pressed = false;
-        //Keyboard.print(inputs[i].keyUp);
-        Serial.print(inputs[i].keyUp); 
-        digitalWrite(inputs[i].ledPin, LOW);
+        inputs[i].buffer[sampleIndex] = newValue;
       }
 
-    } 
-    else if (!inputs[i].pressed) {
-      if (inputs[i].bufferSum > pressThreshold) {  // input becomes pressed
-        inputs[i].pressed = true; 
-        //Keyboard.print(inputs[i].keyDown);
-        Serial.print(inputs[i].keyDown);
-        digitalWrite(inputs[i].ledPin, HIGH);
-      }
-    }    
-
-  }
-
-}
-
-//
-// Update buffer indices
-//
-
-void updateIndices() {
-  bitIndex++;
-
-  if (bitIndex == 8) {
-    bitIndex = 0;
-    byteIndex++;
-    if (byteIndex == BUFFER_LENGTH) {
-      byteIndex = 0; 
+      sampleIndex = (sampleIndex + 1) % BUFFER_LENGTH;
     }
+
+    // Update states.
+    {
+      byte channel = 0;
+      byte pitch = 60;
+      byte velocity = 127;
+
+      for (int i = 0; i < INPUT_COUNT; i++)
+      {
+        if (inputs[i].pressed &&
+            inputs[i].bufferSum < releaseThreshold)
+        {
+          inputs[i].pressed = false;
+
+          midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+          MidiUSB.sendMIDI(noteOff);
+          MidiUSB.flush();
+        }
+        else if (!inputs[i].pressed &&
+                 inputs[i].bufferSum > pressThreshold)
+        {
+          inputs[i].pressed = true;
+
+          midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+          MidiUSB.sendMIDI(noteOn);
+          MidiUSB.flush();
+        }
+      }
+    }
+
+    lastSample = now;
   }
 }
-
-//
-// Make sure each loop lasts at least TARGET_LOOP_TIME
-//
-
-void forceDelay() {
-
-  loopTime = micros() - previousTime;
-  if (loopTime < TARGET_LOOP_TIME) {
-    delayMicroseconds(TARGET_LOOP_TIME - loopTime);
-  }
-
-  previousTime = micros();
-
-}
-
-
-
-
