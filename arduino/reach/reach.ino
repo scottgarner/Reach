@@ -4,6 +4,9 @@
 #define BUFFER_LENGTH 64
 #define SAMPLE_INTERVAL 250
 
+const uint8_t boardSelectA = 2;
+const uint8_t boardSelectB = 3;
+
 int sampleIndex = 0;
 unsigned long lastSample = 0;
 
@@ -20,7 +23,9 @@ typedef struct
 } ReachInput;
 
 ReachInput inputs[INPUT_COUNT] = {
-    {4, 60}, {6, 62}, {8, 64}, {9, 65}, {A0, 67}, {A1, 69}, {A2, 71}, {A3, 72}};
+    {A6, 60}, {A7, 62}, {A8, 64}, {A9, 65}, {A0, 67}, {A1, 69}, {A2, 71}, {A3, 72}};
+
+uint8_t channel = 0;
 
 void setup()
 {
@@ -30,6 +35,14 @@ void setup()
   {
     pinMode(inputs[i].pinNumber, INPUT);
   }
+
+  pinMode(boardSelectA, INPUT_PULLUP);
+  pinMode(boardSelectB, INPUT_PULLUP);
+
+  int lsb = (digitalRead(boardSelectA) == LOW) ? 1 : 0;
+  int msb = (digitalRead(boardSelectB) == LOW) ? 1 : 0;
+
+  channel = (msb << 1) | lsb;
 }
 
 void loop()
@@ -56,12 +69,11 @@ void loop()
 
     // Update states.
     {
-      byte channel = 0;
-      byte pitch = 60;
-      byte velocity = 127;
-
       for (int i = 0; i < INPUT_COUNT; i++)
       {
+        byte pitch = inputs[i].note;
+        byte velocity = 127;
+
         if (inputs[i].pressed &&
             inputs[i].bufferSum < releaseThreshold)
         {
@@ -76,7 +88,7 @@ void loop()
         {
           inputs[i].pressed = true;
 
-          midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+          midiEventPacket_t noteOn = {0x09, (uint8_t)(0x90) | channel, pitch, velocity};
           MidiUSB.sendMIDI(noteOn);
           MidiUSB.flush();
         }
