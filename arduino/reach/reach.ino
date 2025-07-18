@@ -1,5 +1,6 @@
 #include <MIDIUSB.h>
 
+#define BOARD_COUNT 3
 #define INPUT_COUNT 8
 #define BUFFER_LENGTH 64
 #define SAMPLE_INTERVAL 250
@@ -16,16 +17,57 @@ float releaseThreshold = BUFFER_LENGTH * 0.5;
 typedef struct
 {
   byte pinNumber;
-  byte note;
   byte buffer[BUFFER_LENGTH];
   byte bufferSum;
   boolean pressed;
 } ReachInput;
 
-ReachInput inputs[INPUT_COUNT] = {
-    {A6, 60}, {A7, 62}, {A8, 64}, {A9, 65}, {A0, 67}, {A1, 69}, {A2, 71}, {A3, 72}};
+typedef struct
+{
+  byte channel;
+  byte note;
+} ReachOutput;
 
-uint8_t channel = 0;
+ReachInput inputs[INPUT_COUNT] = {
+    {A6}, {A7}, {A8}, {A9}, {A0}, {A1}, {A2}, {A3}};
+
+ReachOutput outputs[BOARD_COUNT][INPUT_COUNT] = {
+    // Panel A
+    {
+        {0, 60}, // Star A
+        {0, 64}, // Star B
+        {0, 67}, // Star C
+        {0, 72}, // Star D
+        {0, 76}, // Star E
+        {0, 79}, // Star F
+        {1, 60}, // Star G
+        {1, 64}, // Star H
+    },
+    // Panel B
+    {
+        {1, 67}, // Star A
+        {1, 72}, // Star B
+        {1, 76}, // Star C
+        {1, 79}, // Star D
+        {2, 60}, // Star E
+        {2, 64}, // Star F
+        {2, 67}, // Star G
+        {2, 72}, // Star H
+    },
+    // Panel C C
+    {
+        {2, 74}, // Star A
+        {2, 79}, // Star B
+        {3, 60}, // Star C
+        {3, 64}, // Star D
+        {3, 67}, // Star E
+        {3, 72}, // Star F
+        {3, 76}, // Star G
+        {3, 79}, // Star H
+    },
+};
+
+uint8_t board = 0;
 
 void setup()
 {
@@ -42,7 +84,7 @@ void setup()
   int lsb = (digitalRead(boardSelectA) == LOW) ? 1 : 0;
   int msb = (digitalRead(boardSelectB) == LOW) ? 1 : 0;
 
-  channel = (msb << 1) | lsb;
+  board = (msb << 1) | lsb;
 }
 
 void loop()
@@ -71,7 +113,9 @@ void loop()
     {
       for (int i = 0; i < INPUT_COUNT; i++)
       {
-        byte pitch = inputs[i].note;
+        byte channel = outputs[board][i].channel;
+        byte note = outputs[board][i].note;
+
         byte velocity = 127;
 
         if (inputs[i].pressed &&
@@ -79,7 +123,7 @@ void loop()
         {
           inputs[i].pressed = false;
 
-          midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+          midiEventPacket_t noteOff = {0x08, 0x80 | channel, note, velocity};
           MidiUSB.sendMIDI(noteOff);
           MidiUSB.flush();
         }
@@ -88,7 +132,7 @@ void loop()
         {
           inputs[i].pressed = true;
 
-          midiEventPacket_t noteOn = {0x09, (uint8_t)(0x90) | channel, pitch, velocity};
+          midiEventPacket_t noteOn = {0x09, (uint8_t)(0x90) | channel, note, velocity};
           MidiUSB.sendMIDI(noteOn);
           MidiUSB.flush();
         }
