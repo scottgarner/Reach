@@ -2,8 +2,14 @@
 
 #define BOARD_COUNT 3
 #define INPUT_COUNT 8
-#define BUFFER_LENGTH 64
-#define SAMPLE_INTERVAL 250
+
+#define SAMPLE_COUNT 32
+#define SAMPLE_INTERVAL 1
+
+#define PRESS_THRESHOLD (SAMPLE_COUNT * 0.7)
+#define RELEASE_THRESHOLD (SAMPLE_COUNT * 0.45)
+
+#define NOTE_TIMEOUT 5000
 
 const uint8_t boardSelectA = 2;
 const uint8_t boardSelectB = 3;
@@ -11,15 +17,14 @@ const uint8_t boardSelectB = 3;
 int sampleIndex = 0;
 unsigned long lastSample = 0;
 
-float pressThreshold = BUFFER_LENGTH * 0.65;
-float releaseThreshold = BUFFER_LENGTH * 0.5;
-
 typedef struct
 {
   byte pinNumber;
-  byte buffer[BUFFER_LENGTH];
+  byte buffer[SAMPLE_COUNT];
   byte bufferSum;
   boolean pressed;
+  boolean noteOn;
+  unsigned long noteOnTime;
 } ReachInput;
 
 typedef struct
@@ -85,17 +90,33 @@ void setup()
   int msb = (digitalRead(boardSelectB) == LOW) ? 1 : 0;
 
   board = (msb << 1) | lsb;
+
+  // Force clear all notes.
+  {
+    for (int channel = 0; channel < 4; channel++)
+    {
+      midiEventPacket_t allNotesOff = {0x0B, 0xB0 | channel, 123, 0};
+      MidiUSB.sendMIDI(allNotesOff);
+    }
+    MidiUSB.flush();
+
+    delay(100);
+  }
 }
 
 void loop()
 {
-  unsigned long now = micros();
+  unsigned long now = millis();
+  bool midiSent = false;
 
   if (now - lastSample >= SAMPLE_INTERVAL)
   {
-    // Update buffers.
+    for (int i = 0; i < INPUT_COUNT; i++)
     {
-      for (int i = 0; i < INPUT_COUNT; i++)
+      byte channel = outputs[board][i].channel;
+      byte note = outputs[board][i].note;
+
+      // Update buffers.
       {
         byte previousValue = inputs[i].buffer[sampleIndex];
         byte newValue = !digitalRead(inputs[i].pinNumber);
@@ -104,41 +125,58 @@ void loop()
         inputs[i].bufferSum += newValue;
 
         inputs[i].buffer[sampleIndex] = newValue;
-      }
 
-      sampleIndex = (sampleIndex + 1) % BUFFER_LENGTH;
-    }
-
-    // Update states.
-    {
-      for (int i = 0; i < INPUT_COUNT; i++)
-      {
-        byte channel = outputs[board][i].channel;
-        byte note = outputs[board][i].note;
-
-        byte velocity = 127;
-
-        if (inputs[i].pressed &&
-            inputs[i].bufferSum < releaseThreshold)
-        {
-          inputs[i].pressed = false;
-
-          midiEventPacket_t noteOff = {0x08, 0x80 | channel, note, velocity};
-          MidiUSB.sendMIDI(noteOff);
-          MidiUSB.flush();
-        }
-        else if (!inputs[i].pressed &&
-                 inputs[i].bufferSum > pressThreshold)
+        bool wasPressed = inputs[i].pressed;
+        if (!wasPressed && inputs[i].bufferSum > PRESS_THRESHOLD)
         {
           inputs[i].pressed = true;
+        }
+        else if (wasPressed && inputs[i].bufferSum < RELEASE_THRESHOLD)
+        {
+          inputs[i].pressed = false;
+        }
+      }
 
-          midiEventPacket_t noteOn = {0x09, (uint8_t)(0x90) | channel, note, velocity};
+      // Update states.
+      {
+        if (inputs[i].pressed && !inputs[i].noteOn)
+        {
+          inputs[i].noteOn = true;
+          inputs[i].noteOnTime = now;
+
+          midiEventPacket_t noteOn = {0x09, (uint8_t)(0x90) | channel, note, 127};
           MidiUSB.sendMIDI(noteOn);
-          MidiUSB.flush();
+          midiSent = true;
+        }
+        else if (!inputs[i].pressed && inputs[i].noteOn)
+        {
+          inputs[i].noteOn = false;
+
+          midiEventPacket_t noteOff = {0x08, 0x80 | channel, note, 0};
+          MidiUSB.sendMIDI(noteOff);
+          midiSent = true;
+        }
+      }
+
+      // Timeout
+      {
+        if (inputs[i].noteOn && (now - inputs[i].noteOnTime > NOTE_TIMEOUT))
+        {
+          inputs[i].noteOn = false;
+
+          midiEventPacket_t noteOff = {0x08, 0x80 | channel, note, 0};
+          MidiUSB.sendMIDI(noteOff);
+          midiSent = true;
         }
       }
     }
 
+    if (midiSent)
+    {
+      MidiUSB.flush();
+    }
+
+    sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
     lastSample = now;
   }
 }
