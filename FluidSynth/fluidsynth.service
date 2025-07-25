@@ -3,7 +3,7 @@ Description=Reach FluidSynth Service
 After=sound.target
 
 [Service]
-ExecStart=/usr/bin/fluidsynth -is -C0 -R1 -a alsa -m alsa_seq -p "FluidSynth GM" -o midi.autoconnect=1 -f /home/pi/Reach/FluidSynth/init.fsc
+ExecStart=/usr/bin/fluidsynth -is -C0 -R1 -a alsa -m alsa_seq -p "FluidSynth GM" -o midi.autoconnect=1 -o audio.alsa.device=hw:0,0 -f /home/pi/Reach/FluidSynth/init.fsc
 
 [Install]
 WantedBy=multi-user.target
