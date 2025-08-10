@@ -6,8 +6,8 @@
 #define SAMPLE_COUNT 32
 #define SAMPLE_INTERVAL 1
 
-#define PRESS_THRESHOLD (SAMPLE_COUNT * 0.7)
-#define RELEASE_THRESHOLD (SAMPLE_COUNT * 0.45)
+#define PRESS_THRESHOLD 100
+#define RELEASE_THRESHOLD 200
 
 #define NOTE_TIMEOUT 5000
 
@@ -20,8 +20,8 @@ unsigned long lastSample = 0;
 typedef struct
 {
   byte pinNumber;
-  byte buffer[SAMPLE_COUNT];
-  byte bufferSum;
+  uint16_t buffer[SAMPLE_COUNT];
+  uint32_t bufferSum;
   boolean pressed;
   boolean noteOn;
   unsigned long noteOnTime;
@@ -33,42 +33,54 @@ typedef struct
   byte note;
 } ReachOutput;
 
+#define CHANNEL_A 0
+#define CHANNEL_B 1
+#define CHANNEL_C 2
+#define CHANNEL_D 3
+
+#define NOTE_ONE 60
+#define NOTE_TWO 64
+#define NOTE_THREE 67
+#define NOTE_FOUR 72
+#define NOTE_FIVE 76
+#define NOTE_SIX 79
+
 ReachInput inputs[INPUT_COUNT] = {
     {A6}, {A7}, {A8}, {A9}, {A0}, {A1}, {A2}, {A3}};
 
 ReachOutput outputs[BOARD_COUNT][INPUT_COUNT] = {
     // Panel A
     {
-        {0, 60}, // Star A
-        {0, 64}, // Star B
-        {0, 67}, // Star C
-        {0, 72}, // Star D
-        {0, 76}, // Star E
-        {0, 79}, // Star F
-        {1, 60}, // Star G
-        {1, 64}, // Star H
+        {CHANNEL_C, NOTE_FIVE},  // Star 1
+        {CHANNEL_A, NOTE_FIVE},  // Star 2
+        {CHANNEL_B, NOTE_THREE}, // Star 3
+        {CHANNEL_C, NOTE_FOUR},  // Star 4
+        {CHANNEL_C, NOTE_ONE},   // Star 5
+        {CHANNEL_D, NOTE_ONE},   // Star 6
+        {CHANNEL_A, NOTE_TWO},   // Star 7
+        {CHANNEL_A, NOTE_FOUR},  // Star 8
     },
     // Panel B
     {
-        {1, 67}, // Star A
-        {1, 72}, // Star B
-        {1, 76}, // Star C
-        {1, 79}, // Star D
-        {2, 60}, // Star E
-        {2, 64}, // Star F
-        {2, 67}, // Star G
-        {2, 72}, // Star H
+        {CHANNEL_B, NOTE_FIVE},  // Star 1
+        {CHANNEL_D, NOTE_THREE}, // Star 2
+        {CHANNEL_A, NOTE_ONE},   // Star 3
+        {CHANNEL_B, NOTE_TWO},   // Star 4
+        {CHANNEL_B, NOTE_FOUR},  // Star 5
+        {CHANNEL_D, NOTE_SIX},   // Star 6
+        {CHANNEL_B, NOTE_SIX},   // Star 7
+        {CHANNEL_D, NOTE_TWO},   // Star 8
     },
-    // Panel C C
+    // Panel C
     {
-        {2, 74}, // Star A
-        {2, 79}, // Star B
-        {3, 60}, // Star C
-        {3, 64}, // Star D
-        {3, 67}, // Star E
-        {3, 72}, // Star F
-        {3, 76}, // Star G
-        {3, 79}, // Star H
+        {CHANNEL_C, NOTE_THREE}, // Star 1
+        {CHANNEL_D, NOTE_FIVE},  // Star 2
+        {CHANNEL_A, NOTE_SIX},   // Star 3
+        {CHANNEL_B, NOTE_ONE},   // Star 4
+        {CHANNEL_D, NOTE_FOUR},  // Star 5
+        {CHANNEL_C, NOTE_SIX},   // Star 6
+        {CHANNEL_C, NOTE_TWO},   // Star 7
+        {CHANNEL_A, NOTE_THREE}, // Star 8
     },
 };
 
@@ -118,20 +130,22 @@ void loop()
 
       // Update buffers.
       {
-        byte previousValue = inputs[i].buffer[sampleIndex];
-        byte newValue = !digitalRead(inputs[i].pinNumber);
+        uint16_t previousValue = inputs[i].buffer[sampleIndex];
+        uint16_t newValue = analogRead(inputs[i].pinNumber);
 
         inputs[i].bufferSum -= previousValue;
         inputs[i].bufferSum += newValue;
 
         inputs[i].buffer[sampleIndex] = newValue;
 
+        uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
+
         bool wasPressed = inputs[i].pressed;
-        if (!wasPressed && inputs[i].bufferSum > PRESS_THRESHOLD)
+        if (!wasPressed && averageValue < PRESS_THRESHOLD)
         {
           inputs[i].pressed = true;
         }
-        else if (wasPressed && inputs[i].bufferSum < RELEASE_THRESHOLD)
+        else if (wasPressed && averageValue > RELEASE_THRESHOLD)
         {
           inputs[i].pressed = false;
         }
@@ -178,5 +192,14 @@ void loop()
 
     sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
     lastSample = now;
+
+    // for (int i = 0; i < INPUT_COUNT; i++)
+    // {
+    //   uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
+    //   Serial.print(averageValue);
+    //   Serial.print(", ");
+    // }
+
+    // Serial.println();
   }
 }
