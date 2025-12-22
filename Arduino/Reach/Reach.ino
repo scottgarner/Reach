@@ -1,21 +1,26 @@
 #include <MIDIUSB.h>
+#include <avr/wdt.h>
 
 #define BOARD_COUNT 3
 #define INPUT_COUNT 8
 
 #define SAMPLE_COUNT 32
-#define SAMPLE_INTERVAL 1
+#define SAMPLE_INTERVAL 4
 
-#define PRESS_THRESHOLD 100
-#define RELEASE_THRESHOLD 200
+#define PRESS_THRESHOLD 500
+#define RELEASE_THRESHOLD 700
 
 #define NOTE_TIMEOUT 5000
+
+#define DEBUG_TIMEOUT 2500
 
 const uint8_t boardSelectA = 2;
 const uint8_t boardSelectB = 3;
 
 int sampleIndex = 0;
 unsigned long lastSample = 0;
+
+unsigned long lastDebug = 0;
 
 typedef struct
 {
@@ -88,6 +93,9 @@ uint8_t board = 0;
 
 void setup()
 {
+  // Disable watchdog.
+  wdt_disable();
+
   Serial.begin(115200);
 
   for (int i = 0; i < INPUT_COUNT; i++)
@@ -114,6 +122,10 @@ void setup()
 
     delay(100);
   }
+
+  // Enable watchdog.
+  delay(1000);
+  wdt_enable(WDTO_4S);
 }
 
 void loop()
@@ -185,21 +197,35 @@ void loop()
       }
     }
 
-    if (midiSent)
-    {
-      MidiUSB.flush();
-    }
-
     sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
     lastSample = now;
-
-    // for (int i = 0; i < INPUT_COUNT; i++)
-    // {
-    //   uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
-    //   Serial.print(averageValue);
-    //   Serial.print(", ");
-    // }
-
-    // Serial.println();
   }
+
+  // Status debug.
+  if (now - lastDebug >= DEBUG_TIMEOUT)
+  {
+    // Heartbeat to flash TX LED.
+    // MidiUSB.sendMIDI({0x04, 0xF0, 0x7D, 0x01});
+    // MidiUSB.sendMIDI({0x06, 0x00, 0xF7, 0x00});
+    // midiSent = true;
+
+    for (int i = 0; i < INPUT_COUNT; i++)
+    {
+      uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
+      Serial.print(averageValue);
+      Serial.print(", ");
+    }
+
+    Serial.println();
+    lastDebug = now;
+  }
+
+  // Send all messages.
+  if (midiSent)
+  {
+    MidiUSB.flush();
+  }
+
+  // Reset watchdog.
+  wdt_reset();
 }
