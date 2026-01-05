@@ -4,7 +4,7 @@
 #define BOARD_COUNT 3
 #define INPUT_COUNT 8
 
-#define SAMPLE_COUNT 32
+#define SAMPLE_COUNT 16
 #define SAMPLE_INTERVAL 4
 
 #define PRESS_THRESHOLD 256
