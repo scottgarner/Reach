@@ -130,6 +130,7 @@ void setup()
 
 void loop()
 {
+
   unsigned long now = millis();
   bool midiSent = false;
 
@@ -209,11 +210,13 @@ void loop()
     // MidiUSB.sendMIDI({0x06, 0x00, 0xF7, 0x00});
     // midiSent = true;
 
+    Serial.print(board);
+    
     for (int i = 0; i < INPUT_COUNT; i++)
     {
       uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
-      Serial.print(averageValue);
       Serial.print(", ");
+      Serial.print(averageValue);
     }
 
     Serial.println();
@@ -228,4 +231,16 @@ void loop()
 
   // Reset watchdog.
   wdt_reset();
+
+  // Check for bootloader command.
+  while (Serial.available())
+  {
+    if (Serial.read() == 'B')
+    {
+      *(uint16_t *)0x0800 = 0x7777;
+      wdt_enable(WDTO_15MS);
+      while (1)
+        ;
+    }
+  }
 }
