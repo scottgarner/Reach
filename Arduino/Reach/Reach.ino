@@ -7,8 +7,8 @@
 #define SAMPLE_COUNT 16
 #define SAMPLE_INTERVAL 4
 
-#define PRESS_THRESHOLD 256
-#define RELEASE_THRESHOLD 384
+#define PRESS_THRESHOLD 192
+#define RELEASE_THRESHOLD 320
 
 #define NOTE_TIMEOUT 5000
 
@@ -211,7 +211,7 @@ void loop()
     // midiSent = true;
 
     Serial.print(board);
-    
+
     for (int i = 0; i < INPUT_COUNT; i++)
     {
       uint16_t averageValue = inputs[i].bufferSum / SAMPLE_COUNT;
