@@ -111,6 +111,16 @@ void setup()
 
   board = (msb << 1) | lsb;
 
+  // Fill buffers with max reading so inputs don't read as pressed on boot.
+  for (int i = 0; i < INPUT_COUNT; i++)
+  {
+    for (int s = 0; s < SAMPLE_COUNT; s++)
+    {
+      inputs[i].buffer[s] = 1023;
+    }
+    inputs[i].bufferSum = 1023UL * SAMPLE_COUNT;
+  }
+
   // Force clear all notes.
   {
     for (int channel = 0; channel < 4; channel++)
