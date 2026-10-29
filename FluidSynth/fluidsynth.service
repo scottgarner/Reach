@@ -1,6 +1,8 @@
 [Unit]
 Description=Reach FluidSynth Service
-After=sound.target
+# Run only while the USBAudio card exists (named by udev, see wiki).
+BindsTo=sys-subsystem-sound-devices-USBAudio.device
+After=sys-subsystem-sound-devices-USBAudio.device
 StartLimitIntervalSec=0
 
 [Service]
@@ -9,4 +11,4 @@ Restart=always
 RestartSec=2
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=sys-subsystem-sound-devices-USBAudio.device
