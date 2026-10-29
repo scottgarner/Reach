@@ -1,6 +1,7 @@
 [Unit]
 Description=Reach FluidSynth Service
 After=sound.target
+StartLimitIntervalSec=0
 
 [Service]
 ExecStart=/usr/bin/fluidsynth -is -C0 -R1 -a alsa -m alsa_seq -p "FluidSynth GM" -o midi.autoconnect=1 -o audio.alsa.device=hw:CARD=USBAudio,DEV=0 -f /home/pi/Reach/FluidSynth/init.fsc

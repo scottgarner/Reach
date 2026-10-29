@@ -13,11 +13,20 @@ for device in $PORTS; do
     screen -S temp -p 0 -X stuff "B"
     sleep 1
     screen -S temp -X quit > /dev/null 2>&1
-    pio run -t upload --upload-port $device
-    echo "Done."
+    if pio run -t upload --upload-port $device; then
+      echo "Done."
+    else
+      echo "FAILED: $device"
+      failed=1
+    fi
   else
     echo "Skipping $device (not connected)"
   fi
 done
+
+if [ -n "$failed" ]; then
+  echo "Some boards failed to update."
+  exit 1
+fi
 
 echo "All boards updated!"
