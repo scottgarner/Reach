@@ -196,6 +196,8 @@ void loop()
       }
 
       // Timeout
+      // TODO: Reevaluate. A held or stuck input retriggers its note every
+      // NOTE_TIMEOUT, since pressed stays true after noteOn is cleared.
       {
         if (inputs[i].noteOn && (now - inputs[i].noteOnTime > NOTE_TIMEOUT))
         {
