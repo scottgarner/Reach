@@ -1,14 +1,14 @@
 [Unit]
 Description=Reach FluidSynth Service
-# Run only while the USBAudio card exists (named by udev, see wiki).
-BindsTo=sys-subsystem-sound-devices-USBAudio.device
-After=sys-subsystem-sound-devices-USBAudio.device
+After=sound.target
 StartLimitIntervalSec=0
 
 [Service]
+# Wait for the USBAudio card (named by udev) before starting.
+ExecStartPre=/bin/sh -c 'until [ -e /proc/asound/USBAudio ]; do sleep 1; done'
 ExecStart=/usr/bin/fluidsynth -is -C0 -R1 -a alsa -m alsa_seq -p "FluidSynth GM" -o midi.autoconnect=1 -o audio.alsa.device=hw:CARD=USBAudio,DEV=0 -f /home/pi/Reach/FluidSynth/init.fsc
 Restart=always
 RestartSec=2
 
 [Install]
-WantedBy=sys-subsystem-sound-devices-USBAudio.device
+WantedBy=multi-user.target
